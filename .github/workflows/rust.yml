@@ -1,0 +1,96 @@
+name: Rust
+
+# TODO: run build on every push regardless of branch
+#       may run into problems publishing artifacts
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  precheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run Linter
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
+      - name: Check code style
+        # NOTE: we have to set the BASH shell option 'globstar'
+        #       for the **/*.rs syntax to work. Apparently this
+        #       feature is disabled by default for some reason
+        run: |
+          shopt -s globstar
+          rustfmt --check ./src/**/*.rs
+
+  test:
+    runs-on: ubuntu-latest
+
+    # TODO: rework test framework to work with code coverage
+    #       apparently tarpaulin doesn't work with assert_cmd library
+    #       https://github.com/assert-rs/assert_cmd/issues/9
+    #       may need to use a different coverage tool
+
+    # container:
+    #   image: xd009642/tarpaulin:develop-nightly
+    #   options: --security-opt seccomp=unconfined
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run tests
+        run: cargo test --verbose
+
+      # - name: Generate code coverage
+      #   run: |
+      #     cargo +nightly tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml --fail-under 60
+
+      # - name: Run cargo-tarpaulin
+      #   uses: actions-rs/tarpaulin@v0.1
+      #   with:
+      #     version: "0.19.1"
+      #     args: "-- --test-threads 1 --fail-under 50"
+
+      # - name: Archive code coverage results
+      #   uses: actions/upload-artifact@v1
+      #   with:
+      #     name: code-coverage-report
+      #     path: cobertura.xml
+
+    # TODO: upload to codecov.io
+    # - name: Upload to codecov.io
+    #   uses: codecov/codecov-action@v1.0.2
+    #   with:
+    #     token: ${{secrets.CODECOV_TOKEN}}
+
+  # TODO: build and publish release builds when triggered from a tag
+  # TODO: publish crates to crates.io and packages to github
+  # TODO: publish user docs to GH pages
+  # TODO: publish API docs to docs.rs
+  publish-dev:
+    # Only publish when previous build steps finish successfully
+    needs: [precheck, test]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build ${{ matrix.os }}
+        run: cargo build --verbose
+      # - name: Publish ${{ matrix.os }}
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: ${{ matrix.os }}
+      #     path: target/debug/sample
+      # - name: Release ${{ matrix.os }}
+      #   uses: softprops/action-gh-release@v1
+      #   with:
+      #     files: target/debug/sample

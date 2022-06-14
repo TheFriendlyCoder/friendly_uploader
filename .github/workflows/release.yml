@@ -1,0 +1,58 @@
+on:
+  push:
+    # Pattern matched against refs/tags
+    tags:
+      - "[v]?[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+
+name: Publish
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ${{ matrix.job.os }}
+    strategy:
+      matrix:
+        job:
+          - os: ubuntu-latest
+            binary-suffix: ""
+            asset-name: "friendly_uploader"
+          - os: macos-latest
+            binary-suffix: ""
+            asset-name: "friendly_uploader_mac"
+          - os: windows-latest
+            binary-suffix: ".exe"
+            asset-name: "friendly_uploader.exe"
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Build ${{ matrix.job.os }}
+        run: cargo build --verbose
+
+      - name: Release ${{ matrix.job.os }}
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file: target/debug/friendly_uploader${{ matrix.job.binary-suffix }}
+          asset_name: ${{ matrix.job.asset-name }}
+          tag: ${{ github.ref }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # - run: cargo publish --token ${CRATES_TOKEN} --dry-run
+      #   env:
+      #     # login to crates.io/me (use Github auth)
+      #     # open settings page and auth tokens
+      #     # generate a new token
+      #     # open Github project
+      #     # go to "Secrets -> Actions -> create secret"
+      #     # name: CRATES_TOKEN
+      #     # value: token that was copied above
+      #     CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
