@@ -1,9 +1,11 @@
+use crate::auth::get_url;
 use simple_error::SimpleError;
 use std::{error::Error, fmt::Debug};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
 use clap::{Parser, Subcommand};
+pub mod auth;
 
 /// App for managing files on a OneDrive service
 #[derive(Parser, Debug)]
@@ -27,6 +29,7 @@ fn init(browser: bool) -> Result<(), SimpleError> {
     if browser {
         return Err(SimpleError::new("Feature not supported"));
     }
+    println!("{}", get_url());
     Ok(())
 }
 
