@@ -1,9 +1,10 @@
 //! Command line tool for managing objects stored in a OneDrive service
-use crate::auth::{get_auth_url, parse_token};
+use crate::auth::{get_auth_data, get_auth_url, parse_token};
 use serde::{Deserialize, Serialize};
 use simple_error::SimpleError;
 use std::fs::File;
 use std::io::{stdin, stdout, Read, Write};
+use std::os::unix::fs::PermissionsExt;
 use std::{error::Error, fmt::Debug};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
@@ -27,13 +28,18 @@ enum SubCommand {
         /// Can we intercept authentication requests from the browser?
         browser: bool,
     },
-    /// Show folder listing
+    /// List contents of root OneDrive folder
     Ls,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Configuration {
+    /// Primary authentication token used to connect to OneDrive
+    /// If this token expires we need to use the refresh_token
+    /// to renew it
     pub auth_token: String,
+    /// Secondary authentication token used to renew the lifetime
+    /// of the primary authentication token
     pub refresh_token: String,
 }
 
@@ -57,17 +63,25 @@ fn init_cmd(browser: bool) -> MyResult<()> {
 
     let token = parse_token(&response_url)?;
 
+    let auth = get_auth_data(&token)?;
+
     let config = Configuration {
-        auth_token: String::from(token),
-        refresh_token: String::from(""),
+        auth_token: auth.access_token,
+        refresh_token: auth.refresh_token,
     };
+
     let s = serde_yaml::to_string(&config)?;
     let mut file = File::create("config.yml")?;
+    let mut perms = file.metadata()?.permissions();
+    perms.set_mode(0o600);
+    file.set_permissions(perms)?;
     file.write_all(s.as_bytes())?;
 
     Ok(())
 }
 
+/// Entrypoint method for the 'ls' subcommand
+/// Shows a directory listing of the root OneDrive folder
 fn ls_cmd() -> MyResult<()> {
     let mut file = File::open("config.yml")?;
     let mut s = String::new();
@@ -76,6 +90,7 @@ fn ls_cmd() -> MyResult<()> {
     println!("Token is {}", config.auth_token);
     Ok(())
 }
+
 /// Entrypoint function for our command line interface
 pub fn run() -> MyResult<()> {
     let args = Args::parse();
