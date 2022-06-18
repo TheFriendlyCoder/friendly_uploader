@@ -1,7 +1,9 @@
 //! Command line tool for managing objects stored in a OneDrive service
 use crate::auth::{get_auth_url, parse_token};
+use serde::{Deserialize, Serialize};
 use simple_error::SimpleError;
-use std::io::{stdin, stdout, Write};
+use std::fs::File;
+use std::io::{stdin, stdout, Read, Write};
 use std::{error::Error, fmt::Debug};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
@@ -25,6 +27,14 @@ enum SubCommand {
         /// Can we intercept authentication requests from the browser?
         browser: bool,
     },
+    /// Show folder listing
+    Ls,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Configuration {
+    pub auth_token: String,
+    pub refresh_token: String,
 }
 
 /// Entry point function for the "init" subcommand
@@ -47,19 +57,34 @@ fn init_cmd(browser: bool) -> MyResult<()> {
 
     let token = parse_token(&response_url)?;
 
-    // TODO: store token in a config file in the users home folder
-    //       make it yaml format and set the mode to 600
-    println!("Token is {}", token);
+    let config = Configuration {
+        auth_token: String::from(token),
+        refresh_token: String::from(""),
+    };
+    let s = serde_yaml::to_string(&config)?;
+    let mut file = File::create("config.yml")?;
+    file.write_all(s.as_bytes())?;
+
     Ok(())
 }
 
+fn ls_cmd() -> MyResult<()> {
+    let mut file = File::open("config.yml")?;
+    let mut s = String::new();
+    file.read_to_string(&mut s)?;
+    let config: Configuration = serde_yaml::from_str(&s)?;
+    println!("Token is {}", config.auth_token);
+    Ok(())
+}
 /// Entrypoint function for our command line interface
 pub fn run() -> MyResult<()> {
     let args = Args::parse();
     match args.cmd {
         SubCommand::Init { browser } => {
-            println!("Interactive? {}", browser);
             init_cmd(browser)?;
+        }
+        SubCommand::Ls => {
+            ls_cmd()?;
         }
     }
     dbg!(args);
