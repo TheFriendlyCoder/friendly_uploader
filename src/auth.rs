@@ -18,7 +18,7 @@ const CLIENT_ID: &str = "f9b7e56c-0d02-4ba4-b1ee-24a98f591be4";
 /// Gets a formatted URL that can be pasted into a web browser to request access
 /// to the currently logged in OneDrive users profile for our app
 pub fn get_auth_url() -> String {
-    let scope = encode("onedrive.readwrite offline_access");
+    let scope = encode("files.readwrite.all onedrive.readwrite offline_access");
     format!("https://login.live.com/oauth20_authorize.srf?client_id={}&scope={}&response_type=code&redirect_uri={}", CLIENT_ID, scope, REDIRECT_URI)
 }
 
