@@ -27,7 +27,7 @@ jobs:
         #       feature is disabled by default for some reason
         run: |
           shopt -s globstar
-          cargo fmt --check ./src/**/*.rs
+          cargo fmt --check
 
   test:
     runs-on: ubuntu-latest
