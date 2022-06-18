@@ -4,18 +4,18 @@ use clap::{Parser, Subcommand};
 use futures::executor;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
-use lazy_static::lazy_static;
+//use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use simple_error::SimpleError;
+//use simple_error::SimpleError;
 use std::convert::Infallible;
 use std::fs::File;
 use std::io::{stdin, stdout, Read, Write};
 use std::net::SocketAddr;
 use std::os::unix::fs::PermissionsExt;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::{error::Error, fmt::Debug};
-use tokio::sync::oneshot::Sender;
-use tokio::sync::Mutex;
+//use tokio::sync::oneshot::Sender;
+//use tokio::sync::Mutex;
 
 pub mod auth;
 
@@ -52,14 +52,17 @@ pub struct Configuration {
     pub refresh_token: String,
 }
 
-lazy_static! {
-    /// Channel used to send shutdown signal - wrapped in an Option to allow
-    /// it to be taken by value (since oneshot channels consume themselves on
-    /// send) and an Arc<Mutex> to allow it to be safely shared between threads
-    static ref SHUTDOWN_TX: Arc<Mutex<Option<Sender<()>>>> = <_>::default();
-}
+// lazy_static! {
+//     /// Channel used to send shutdown signal - wrapped in an Option to allow
+//     /// it to be taken by value (since oneshot channels consume themselves on
+//     /// send) and an Arc<Mutex> to allow it to be safely shared between threads
+//     static ref SHUTDOWN_TX: Arc<Mutex<Option<Sender<()>>>> = <_>::default();
+// }
 
-async fn onedrive_oauth_response(req: Request<Body>) -> Result<Response<Body>, Infallible> {
+async fn onedrive_oauth_response(
+    req: Request<Body>,
+    content: &Arc<Mutex<String>>,
+) -> Result<Response<Body>, Infallible> {
     // TODO: store client code in a mutex so it can be passed back to the caller
     // TODO: implement error handling
     // TODO: move this auth code into auth module
@@ -74,11 +77,17 @@ async fn onedrive_oauth_response(req: Request<Body>) -> Result<Response<Body>, I
     // https://users.rust-lang.org/t/how-to-stop-hypers-server/26322
     // https://stackoverflow.com/questions/63599177/how-do-i-terminate-a-hyper-server-after-fulfilling-one-request
     // https://github.com/IntrepidPig/orca/blob/cf20d349d8cea92eab66aeb84838541e4fda29e4/src/net/auth.rs
+    // https://web.mit.edu/rust-lang_v1.25/arch/amd64_ubuntu1404/share/doc/rust/html/book/second-edition/ch16-03-shared-state.html
     let params = req.uri().to_string();
     let url = format!("{}{}", "http://127.0.0.1:8080", params);
     let token = parse_token(&url).unwrap();
     let msg = format!("URL {} with token {}", url, token);
-    Ok(Response::new(msg.into()))
+    content.lock().unwrap().push_str("Hello world");
+
+    println!("In my handler call...");
+    let retval = Response::new(msg.into());
+
+    Ok(retval)
 }
 
 /// Entry point function for the "init" subcommand
@@ -90,22 +99,25 @@ async fn onedrive_oauth_response(req: Request<Body>) -> Result<Response<Body>, I
 ///               authentication request automatically intercepted
 fn init_cmd(browser: bool) -> MyResult<()> {
     if browser {
-        return Err(SimpleError::new("Feature not supported").into());
-        let (sender, receiver) = tokio::sync::oneshot::channel::<()>();
-        executor::block_on(SHUTDOWN_TX.lock()).replace(sender);
-
+        //return Err(SimpleError::new("Feature not supported").into());
+        let token_arc = Arc::new(Mutex::new(String::new()));
         let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
         let make_svc = make_service_fn(|_conn| async {
+            //let _token_arc = Arc::clone(&token_arc);
+            let token = Arc::new(Mutex::new(String::new()));
             // service_fn converts our function into a `Service`
-            let res = service_fn(onedrive_oauth_response);
-            SHUTDOWN_TX.lock().await.take().unwrap().send(()).ok();
+            println!("In my service call...");
+            let res = service_fn(move |req| onedrive_oauth_response(req, &token));
+
+            // SHUTDOWN_TX.lock().await.take().unwrap().send(()).ok();
             Ok::<_, Infallible>(res)
         });
         let server = Server::bind(&addr).serve(make_svc);
-        let graceful = server.with_graceful_shutdown(async { receiver.await.unwrap() });
+        //let graceful = server.with_graceful_shutdown(async { receiver.await.unwrap() });
 
         open::that(get_auth_url())?;
-        executor::block_on(graceful)?;
+        //executor::block_on(graceful)?;
+        executor::block_on(server)?;
 
         return Ok(());
     }
