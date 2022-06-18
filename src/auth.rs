@@ -3,13 +3,15 @@ use futures::executor;
 use reqwest;
 use serde::Deserialize;
 use simple_error::SimpleError;
+use std::io::{BufRead, BufReader, Write};
+use std::net::TcpListener;
 use std::{collections::HashMap, error::Error};
 use url::Url;
 use urlencoding::encode;
 
 /// URL where the browser will be redirected to after the user approves
 /// access to their OneDrive account for our app
-const REDIRECT_URI: &str = "http://localhost:8080/";
+pub const REDIRECT_URI: &str = "http://127.0.0.1:8080/";
 /// GUID that uniquely identifies our application to OneDrive
 const CLIENT_ID: &str = "f9b7e56c-0d02-4ba4-b1ee-24a98f591be4";
 
@@ -37,6 +39,43 @@ pub fn parse_token(url: &str) -> Result<Box<str>, Box<dyn Error>> {
         }
     }
     Err(SimpleError::new("URL did not contain authentication token").into())
+}
+
+/// Retrieves an oauth token for the OneDrive service for the user by opening
+/// the OAuth registration page in the default web browser and listening for
+/// an approved response from the default listening port on the local machine
+pub fn get_oauth_token_from_browser() -> Result<Box<str>, Box<dyn Error>> {
+    // TODO: Write tests for this code
+    // Reference implementation:
+    // https://github.com/ramosbugs/oauth2-rs/blob/main/examples/msgraph.rs
+    let listener = TcpListener::bind("127.0.0.1:8080")?;
+    open::that(get_auth_url())?;
+
+    let mut params = String::new();
+    if let Some(stream) = listener.incoming().next() {
+        let mut stream = stream?;
+
+        let mut reader = BufReader::new(&stream);
+
+        let mut request_line = String::new();
+        reader.read_line(&mut request_line)?;
+
+        let temp_err = SimpleError::new(format!("Unvalid input line {}", request_line));
+        let redirect_url = request_line.split_whitespace().nth(1).ok_or(temp_err)?;
+        params.push_str(redirect_url);
+
+        // TODO: update this response to pop up a modal dialog in the browser informing
+        //       the user to go back to the terminal, and then force-close the browser tab
+        let content = "Go back to your terminal :)";
+        let response = format!(
+            "HTTP/1.1 200 OK\r\ncontent-length: {}\r\n\r\n{}",
+            content.len(),
+            content
+        );
+        stream.write_all(response.as_bytes())?;
+    }
+    let retval = format!("{}{}", REDIRECT_URI, params);
+    Ok(Box::from(retval))
 }
 
 #[derive(Deserialize, Debug)]
