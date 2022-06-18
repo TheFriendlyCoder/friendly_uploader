@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 use futures::executor;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use simple_error::SimpleError;
 use std::convert::Infallible;
@@ -11,10 +12,8 @@ use std::fs::File;
 use std::io::{stdin, stdout, Read, Write};
 use std::net::SocketAddr;
 use std::os::unix::fs::PermissionsExt;
-use std::{error::Error, fmt::Debug};
-
-use lazy_static::lazy_static;
 use std::sync::Arc;
+use std::{error::Error, fmt::Debug};
 use tokio::sync::oneshot::Sender;
 use tokio::sync::Mutex;
 
@@ -60,10 +59,21 @@ lazy_static! {
     static ref SHUTDOWN_TX: Arc<Mutex<Option<Sender<()>>>> = <_>::default();
 }
 
-async fn hello_world(req: Request<Body>) -> Result<Response<Body>, Infallible> {
-    if let Some(tx) = SHUTDOWN_TX.lock().await.take() {
-        let _ = tx.send(());
-    }
+async fn onedrive_oauth_response(req: Request<Body>) -> Result<Response<Body>, Infallible> {
+    // TODO: store client code in a mutex so it can be passed back to the caller
+    // TODO: implement error handling
+    // TODO: move this auth code into auth module
+    // TODO: make listening port use configurable via command line options
+    // TODO: have the browser window open a pop-up dialog telling the user to
+    //       go back to their terminal window, then when the dialog is closed
+    //       close the browser window/tab
+    // TODO: consider setting a timeout on the dynamic loading process so the
+    //       tool doesn't block indefinitely
+    // TODO: put a status message on the console before launching the browser
+    //       window so they aren't left wondering what is going on
+    // https://users.rust-lang.org/t/how-to-stop-hypers-server/26322
+    // https://stackoverflow.com/questions/63599177/how-do-i-terminate-a-hyper-server-after-fulfilling-one-request
+    // https://github.com/IntrepidPig/orca/blob/cf20d349d8cea92eab66aeb84838541e4fda29e4/src/net/auth.rs
     let params = req.uri().to_string();
     let url = format!("{}{}", "http://127.0.0.1:8080", params);
     let token = parse_token(&url).unwrap();
@@ -80,22 +90,24 @@ async fn hello_world(req: Request<Body>) -> Result<Response<Body>, Infallible> {
 ///               authentication request automatically intercepted
 fn init_cmd(browser: bool) -> MyResult<()> {
     if browser {
-        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-        executor::block_on(SHUTDOWN_TX.lock()).replace(tx);
+        return Err(SimpleError::new("Feature not supported").into());
+        let (sender, receiver) = tokio::sync::oneshot::channel::<()>();
+        executor::block_on(SHUTDOWN_TX.lock()).replace(sender);
 
         let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
         let make_svc = make_service_fn(|_conn| async {
             // service_fn converts our function into a `Service`
-            Ok::<_, Infallible>(service_fn(hello_world))
+            let res = service_fn(onedrive_oauth_response);
+            SHUTDOWN_TX.lock().await.take().unwrap().send(()).ok();
+            Ok::<_, Infallible>(res)
         });
         let server = Server::bind(&addr).serve(make_svc);
-        let graceful = server.with_graceful_shutdown(async {
-            rx.await.ok();
-        });
+        let graceful = server.with_graceful_shutdown(async { receiver.await.unwrap() });
+
         open::that(get_auth_url())?;
         executor::block_on(graceful)?;
 
-        return Err(SimpleError::new("Feature not supported").into());
+        return Ok(());
     }
     println!("Open this URL in your browser: {}", get_auth_url());
 
