@@ -1,4 +1,10 @@
 //! Primitves for managing OneDrive authentication tokens
+//!
+//! App registration and configuration can be done through here:
+//!     https://aka.ms/AppRegistrations
+//!
+//! Documentation for the OneDrive authentication process is found here:
+//!     https://docs.microsoft.com/en-us/onedrive/developer/rest-api/getting-started/msa-oauth?view=odsp-graph-online
 use futures::executor;
 use reqwest;
 use serde::Deserialize;
@@ -9,7 +15,7 @@ use urlencoding::encode;
 
 /// URL where the browser will be redirected to after the user approves
 /// access to their OneDrive account for our app
-const REDIRECT_URI: &str = "http://localhost:8080/";
+const REDIRECT_URI: &str = "http://127.0.0.1:8080/";
 /// GUID that uniquely identifies our application to OneDrive
 const CLIENT_ID: &str = "f9b7e56c-0d02-4ba4-b1ee-24a98f591be4";
 

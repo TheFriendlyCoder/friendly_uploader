@@ -1,16 +1,26 @@
 //! Command line tool for managing objects stored in a OneDrive service
 use crate::auth::{get_auth_data, get_auth_url, parse_token};
+use clap::{Parser, Subcommand};
+use futures::executor;
+use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Request, Response, Server};
 use serde::{Deserialize, Serialize};
 use simple_error::SimpleError;
+use std::convert::Infallible;
 use std::fs::File;
 use std::io::{stdin, stdout, Read, Write};
+use std::net::SocketAddr;
 use std::os::unix::fs::PermissionsExt;
 use std::{error::Error, fmt::Debug};
 
-type MyResult<T> = Result<T, Box<dyn Error>>;
+use lazy_static::lazy_static;
+use std::sync::Arc;
+use tokio::sync::oneshot::Sender;
+use tokio::sync::Mutex;
 
-use clap::{Parser, Subcommand};
 pub mod auth;
+
+type MyResult<T> = Result<T, Box<dyn Error>>;
 
 /// App for managing files on a OneDrive service
 #[derive(Parser, Debug)]
@@ -43,6 +53,24 @@ pub struct Configuration {
     pub refresh_token: String,
 }
 
+lazy_static! {
+    /// Channel used to send shutdown signal - wrapped in an Option to allow
+    /// it to be taken by value (since oneshot channels consume themselves on
+    /// send) and an Arc<Mutex> to allow it to be safely shared between threads
+    static ref SHUTDOWN_TX: Arc<Mutex<Option<Sender<()>>>> = <_>::default();
+}
+
+async fn hello_world(req: Request<Body>) -> Result<Response<Body>, Infallible> {
+    if let Some(tx) = SHUTDOWN_TX.lock().await.take() {
+        let _ = tx.send(());
+    }
+    let params = req.uri().to_string();
+    let url = format!("{}{}", "http://127.0.0.1:8080", params);
+    let token = parse_token(&url).unwrap();
+    let msg = format!("URL {} with token {}", url, token);
+    Ok(Response::new(msg.into()))
+}
+
 /// Entry point function for the "init" subcommand
 ///
 /// # Arguments
@@ -52,6 +80,21 @@ pub struct Configuration {
 ///               authentication request automatically intercepted
 fn init_cmd(browser: bool) -> MyResult<()> {
     if browser {
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        executor::block_on(SHUTDOWN_TX.lock()).replace(tx);
+
+        let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
+        let make_svc = make_service_fn(|_conn| async {
+            // service_fn converts our function into a `Service`
+            Ok::<_, Infallible>(service_fn(hello_world))
+        });
+        let server = Server::bind(&addr).serve(make_svc);
+        let graceful = server.with_graceful_shutdown(async {
+            rx.await.ok();
+        });
+        open::that(get_auth_url())?;
+        executor::block_on(graceful)?;
+
         return Err(SimpleError::new("Feature not supported").into());
     }
     println!("Open this URL in your browser: {}", get_auth_url());
