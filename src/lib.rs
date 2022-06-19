@@ -2,15 +2,18 @@
 use crate::auth::{
     get_auth_data, get_auth_url, get_oauth_token_from_browser, parse_token, REDIRECT_URI,
 };
+use clap::{Parser, Subcommand};
+use futures::executor;
+use onedrive_api::{DriveLocation, ItemLocation, OneDrive};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{stdin, stdout, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::{error::Error, fmt::Debug};
-type MyResult<T> = Result<T, Box<dyn Error>>;
-use clap::{Parser, Subcommand};
 
 pub mod auth;
+
+type MyResult<T> = Result<T, Box<dyn Error>>;
 
 /// App for managing files on a OneDrive service
 #[derive(Parser, Debug)]
@@ -79,7 +82,6 @@ fn init_cmd(browser: bool) -> MyResult<()> {
         refresh_token: auth.refresh_token,
     };
 
-    println!("Config data {:#?}", config);
     let s = serde_yaml::to_string(&config)?;
     let mut file = File::create("config.yml")?;
     let mut perms = file.metadata()?.permissions();
@@ -97,7 +99,14 @@ fn ls_cmd() -> MyResult<()> {
     let mut s = String::new();
     file.read_to_string(&mut s)?;
     let config: Configuration = serde_yaml::from_str(&s)?;
-    println!("Token is {}", config.auth_token);
+
+    let drive = OneDrive::new(config.auth_token, DriveLocation::me());
+    let item = ItemLocation::root();
+    let a = drive.list_children(item);
+    let b = executor::block_on(a)?;
+    for i in b {
+        println!("{}", i.name.unwrap());
+    }
     Ok(())
 }
 
@@ -112,6 +121,5 @@ pub fn run() -> MyResult<()> {
             ls_cmd()?;
         }
     }
-    dbg!(args);
     Ok(())
 }
