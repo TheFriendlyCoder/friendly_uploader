@@ -1,5 +1,5 @@
 [package]
-name = "friendly_uploader"
+name = "onedrive_manager"
 version = "0.1.0"
 edition = "2021"
 

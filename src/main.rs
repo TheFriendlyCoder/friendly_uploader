@@ -3,7 +3,7 @@
 
 #[tokio::main]
 async fn main() {
-    if let Err(e) = friendly_uploader::run() {
+    if let Err(e) = onedrive_manager::run() {
         eprintln!("{}", e);
 
         std::process::exit(1);

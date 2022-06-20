@@ -1,4 +1,7 @@
 //! Primitves for managing OneDrive authentication tokens
+//! Used primarily to orchestrate the OAuth authentication
+//! process using the "code flow" defined here:
+//!     https://docs.microsoft.com/en-us/onedrive/developer/rest-api/getting-started/msa-oauth?view=odsp-graph-online
 use futures::executor;
 use reqwest;
 use serde::Deserialize;
@@ -13,7 +16,9 @@ use urlencoding::encode;
 /// access to their OneDrive account for our app
 pub const REDIRECT_URI: &str = "http://127.0.0.1:8080/";
 /// GUID that uniquely identifies our application to OneDrive
-const CLIENT_ID: &str = "f9b7e56c-0d02-4ba4-b1ee-24a98f591be4";
+/// Managed through the Azue app port here:
+///     https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade
+const CLIENT_ID: &str = "454dddcf-522d-43b6-b078-b38657e8045a";
 
 /// Gets a formatted URL that can be pasted into a web browser to request access
 /// to the currently logged in OneDrive users profile for our app
