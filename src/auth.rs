@@ -36,11 +36,11 @@ pub fn get_auth_url() -> String {
 /// * `url` - Response URL produced by the OneDrive authentication process
 ///           Is expected to have a short lived authentication token encoded
 ///           in a query parameter named "code"
-pub fn parse_token(url: &str) -> Result<Box<str>, Box<dyn Error>> {
+pub fn parse_token(url: &str) -> Result<String, Box<dyn Error>> {
     let url_data = Url::parse(url)?;
     for pair in url_data.query_pairs() {
         if pair.0 == "code" {
-            return Ok(Box::from(pair.1));
+            return Ok(pair.1.to_string());
         }
     }
     Err(SimpleError::new("URL did not contain authentication token").into())
@@ -49,7 +49,7 @@ pub fn parse_token(url: &str) -> Result<Box<str>, Box<dyn Error>> {
 /// Retrieves an oauth token for the OneDrive service for the user by opening
 /// the OAuth registration page in the default web browser and listening for
 /// an approved response from the default listening port on the local machine
-pub fn get_oauth_token_from_browser() -> Result<Box<str>, Box<dyn Error>> {
+pub fn get_oauth_token_from_browser() -> Result<String, Box<dyn Error>> {
     // TODO: Write tests for this code
     // Reference implementation:
     // https://github.com/ramosbugs/oauth2-rs/blob/main/examples/msgraph.rs
@@ -79,8 +79,7 @@ pub fn get_oauth_token_from_browser() -> Result<Box<str>, Box<dyn Error>> {
         );
         stream.write_all(response.as_bytes())?;
     }
-    let retval = format!("{}{}", REDIRECT_URI, params);
-    Ok(Box::from(retval))
+    Ok(format!("{}{}", REDIRECT_URI, params))
 }
 
 #[derive(Deserialize, Debug)]

@@ -59,20 +59,23 @@ pub struct Configuration {
 ///               launched by our app, and have the response from the
 ///               authentication request automatically intercepted
 fn init_cmd(browser: bool) -> MyResult<()> {
-    let mut response_url = String::new();
-    if browser {
-        println!("Waiting for OneDrive authentication request in your browser...");
-        println!("Reference URL: {}", get_auth_url());
-        println!("Listening for response on: {}", REDIRECT_URI);
+    let response_url = match browser {
+        true => {
+            println!("Waiting for OneDrive authentication request in your browser...");
+            println!("Reference URL: {}", get_auth_url());
+            println!("Listening for response on: {}", REDIRECT_URI);
 
-        response_url.push_str(&get_oauth_token_from_browser()?);
-    } else {
-        println!("Open this URL in your browser: {}", get_auth_url());
-
-        print!("Paste the response URL here: ");
-        stdout().flush()?;
-        stdin().read_line(&mut response_url)?;
-    }
+            get_oauth_token_from_browser()?
+        }
+        false => {
+            println!("Open this URL in your browser: {}", get_auth_url());
+            print!("Paste the response URL here: ");
+            stdout().flush()?;
+            let mut temp = String::new();
+            stdin().read_line(&mut temp)?;
+            temp
+        }
+    };
 
     let token = parse_token(&response_url)?;
     let auth = get_auth_data(&token)?;
