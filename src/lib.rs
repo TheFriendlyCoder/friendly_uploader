@@ -6,14 +6,28 @@ use clap::{Parser, Subcommand};
 use futures::executor;
 use onedrive_api::{DriveLocation, ItemLocation, OneDrive};
 use serde::{Deserialize, Serialize};
-use std::fs::File;
+use std::fs::{create_dir, File};
 use std::io::{stdin, stdout, Read, Write};
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::{error::Error, fmt::Debug};
 
 pub mod auth;
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
+
+/// Path to folder containing configuration data for the app
+fn config_folder() -> PathBuf {
+    dirs::home_dir()
+        .expect("Unable to resolve use home folder")
+        .join(".onedrive_manager")
+}
+
+/// Path to the configuration file containing options that customize
+/// the behavior of the application
+fn config_file() -> PathBuf {
+    config_folder().join("config.yml")
+}
 
 /// App for managing files on a OneDrive service
 #[derive(Parser, Debug)]
@@ -85,8 +99,13 @@ fn init_cmd(browser: bool) -> MyResult<()> {
         refresh_token: auth.refresh_token,
     };
 
+    // TODO: move this to a "save" method on the "Configuration" struct
     let s = serde_yaml::to_string(&config)?;
-    let mut file = File::create("config.yml")?;
+    let config_file_path = config_file();
+    if !config_file_path.parent().unwrap().is_dir() {
+        create_dir(config_file_path.parent().unwrap())?;
+    }
+    let mut file = File::create(config_file_path)?;
     let mut perms = file.metadata()?.permissions();
     perms.set_mode(0o600);
     file.set_permissions(perms)?;
@@ -98,7 +117,8 @@ fn init_cmd(browser: bool) -> MyResult<()> {
 /// Entrypoint method for the 'ls' subcommand
 /// Shows a directory listing of the root OneDrive folder
 fn ls_cmd() -> MyResult<()> {
-    let mut file = File::open("config.yml")?;
+    // TODO: move this block of code to a "load" method on the "Configuration" class
+    let mut file = File::open(config_file())?;
     let mut s = String::new();
     file.read_to_string(&mut s)?;
     let config: Configuration = serde_yaml::from_str(&s)?;
