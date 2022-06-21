@@ -1,6 +1,7 @@
 //! Entrypoint functions for all of our CLI commands
 use crate::auth::{
-    get_auth_data, get_auth_url, get_oauth_token_from_browser, parse_token, REDIRECT_URI,
+    get_auth_data, get_auth_url, get_oauth_token_from_browser, parse_token, refresh_auth_data,
+    REDIRECT_URI,
 };
 use crate::configfile::Configuration;
 use futures::executor;
@@ -77,13 +78,30 @@ pub fn init_cmd(browser: bool) -> MyResult<()> {
 /// Entrypoint method for the 'ls' subcommand
 /// Shows a directory listing of the root OneDrive folder
 pub fn ls_cmd() -> MyResult<()> {
-    let config = Configuration::from_file(&config_file())?;
+    let mut config = Configuration::from_file(&config_file())?;
 
-    let drive = OneDrive::new(config.auth_token, DriveLocation::me());
-    let item = ItemLocation::root();
-    let a = drive.list_children(item);
-    let b = executor::block_on(a)?;
-    for i in b {
+    let service = OneDrive::new(config.auth_token, DriveLocation::me());
+    let src_item = ItemLocation::root();
+    let result = executor::block_on(service.list_children(src_item));
+    let children = match result {
+        Ok(d) => d,
+        Err(_) => {
+            // If our first attempt to perform the operation fails, request a token
+            // refresh from OneDrive and try again
+            let temp = refresh_auth_data(&config.refresh_token)?;
+            config.auth_token = temp.access_token;
+            config.refresh_token = temp.refresh_token;
+            config.save(&config_file())?;
+
+            let drive = OneDrive::new(config.auth_token, DriveLocation::me());
+            let item = ItemLocation::root();
+            let a = drive.list_children(item);
+            executor::block_on(a)?
+        }
+    };
+
+    // Iterate through children and show their names to the user
+    for i in children {
         println!("{}", i.name.unwrap());
     }
     Ok(())
