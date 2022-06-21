@@ -10,9 +10,6 @@ use std::error::Error;
 use std::io::{stdin, stdout, Write};
 use std::path::PathBuf;
 
-//pub mod auth;
-//pub mod configfile;
-
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
 /// Path to folder containing configuration data for the app

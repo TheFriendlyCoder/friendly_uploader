@@ -1,11 +1,11 @@
 //! Command line tool for managing objects stored in a OneDrive service
-use crate::commands::{init_cmd, ls_cmd};
 use clap::{Parser, Subcommand};
+use commands::{init_cmd, ls_cmd};
 use std::{error::Error, fmt::Debug};
 
-pub mod auth;
-pub mod commands;
-pub mod configfile;
+mod auth;
+mod commands;
+mod configfile;
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
