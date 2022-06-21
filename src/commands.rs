@@ -7,7 +7,8 @@ use crate::configfile::Configuration;
 use futures::executor;
 use onedrive_api::{DriveLocation, ItemLocation, OneDrive};
 use std::error::Error;
-use std::io::{stdin, stdout, Write};
+use std::fs::File;
+use std::io::{stdin, stdout, Read, Write};
 use std::path::PathBuf;
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
@@ -101,5 +102,51 @@ pub fn ls_cmd() -> MyResult<()> {
     for i in children {
         println!("{}", i.name.unwrap());
     }
+    Ok(())
+}
+
+/// Entrypoint function that uploads a new file to OneDrive
+/// Currently assumes target folder is going to be the OneDrive
+/// root foldeer
+///
+/// # Arguments
+///
+/// * `source_file` - path to the local file to upload
+pub fn upload_cmd(source_file: &PathBuf) -> MyResult<()> {
+    let mut config = Configuration::from_file(&config_file())?;
+    let client = reqwest::Client::new();
+
+    let service = OneDrive::new(config.auth_token, DriveLocation::me());
+    let src_item = ItemLocation::root();
+    let result = executor::block_on(service.new_upload_session(src_item));
+    let (session, _meta) = match result {
+        Ok((s, m)) => (s, m),
+        Err(_) => {
+            // If our first attempt to perform the operation fails, request a token
+            // refresh from OneDrive and try again
+            let temp = refresh_auth_data(&config.refresh_token)?;
+            config.auth_token = temp.access_token;
+            config.refresh_token = temp.refresh_token;
+            config.save(&config_file())?;
+
+            let service = OneDrive::new(config.auth_token, DriveLocation::me());
+            let src_item = ItemLocation::root();
+            executor::block_on(service.new_upload_session(src_item))?
+        }
+    };
+    let mut file = File::open(source_file)?;
+    let file_size = file.metadata()?.len();
+    let mut buffer = vec![0; file_size as usize];
+    file.read_exact(&mut buffer).expect("buffer overflow");
+    let dest_item =
+        executor::block_on(session.upload_part(buffer, 0..file_size, file_size, &client))?;
+    match dest_item {
+        Some(item) => {
+            println!("Successfully uploaded {}", item.name.unwrap());
+        }
+        None => {
+            println!("Failed to upload file");
+        }
+    };
     Ok(())
 }

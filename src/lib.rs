@@ -1,7 +1,7 @@
 //! Command line tool for managing objects stored in a OneDrive service
 use clap::{Parser, Subcommand};
-use commands::{init_cmd, ls_cmd};
-use std::{error::Error, fmt::Debug};
+use commands::{init_cmd, ls_cmd, upload_cmd};
+use std::{error::Error, fmt::Debug, path::PathBuf};
 
 mod auth;
 mod commands;
@@ -27,6 +27,12 @@ enum SubCommand {
     },
     /// List contents of root OneDrive folder
     Ls,
+    /// Upload a new file to OneDrive root folder
+    Upload {
+        #[clap(short, long)]
+        /// Path to the file to upload
+        sourcefile: PathBuf,
+    },
 }
 
 /// Entrypoint function for our command line interface
@@ -38,6 +44,9 @@ pub fn run() -> MyResult<()> {
         }
         SubCommand::Ls => {
             ls_cmd()?;
+        }
+        SubCommand::Upload { sourcefile } => {
+            upload_cmd(&sourcefile)?;
         }
     }
     Ok(())
