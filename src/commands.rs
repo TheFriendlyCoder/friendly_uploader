@@ -1,4 +1,5 @@
 //! Entrypoint functions for all of our CLI commands
+use crate::api::onedrive::OneDriveTwo;
 use crate::auth::{
     get_auth_data, get_auth_url, get_oauth_token_from_browser, parse_token, refresh_auth_data,
     REDIRECT_URI,
@@ -148,5 +149,22 @@ pub fn upload_cmd(source_file: &PathBuf) -> MyResult<()> {
             println!("Failed to upload file");
         }
     };
+    Ok(())
+}
+
+use serde_json::Value;
+pub fn test_cmd() -> MyResult<()> {
+    let mut config = Configuration::from_file(&config_file())?;
+    // let temp = refresh_auth_data(&config.refresh_token)?;
+    // config.auth_token = temp.access_token;
+    // config.refresh_token = temp.refresh_token;
+    // config.save(&config_file())?;
+
+    let svc = OneDriveTwo::new(config.auth_token);
+    let res = executor::block_on(svc.list())?;
+    println!("Response: {:#?}", res);
+    let data = executor::block_on(res.text())?;
+    let v: Value = serde_json::from_str(&data)?;
+    println!("Body is: {:#?}", v);
     Ok(())
 }
