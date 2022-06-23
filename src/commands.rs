@@ -160,10 +160,10 @@ pub fn test_cmd() -> MyResult<()> {
     // config.save(&config_file())?;
 
     let svc = OneDriveTwo::new(config.auth_token);
-    let mut res = executor::block_on(svc.list())?;
-
+    let res = executor::block_on(svc.list())?;
+    println!("{:#?}", res);
     for i in res {
-        println!("{:#?}", i["name"].as_str().expect("must be a string"));
+        println!("{:#?}", i.name);
     }
 
     Ok(())

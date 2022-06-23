@@ -1,15 +1,23 @@
 //! Primitives for connecting to the OneDrive service
 use reqwest::Client;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::error::Error;
 type MyResult<T> = Result<T, Box<dyn Error>>;
-use core::option::Iter;
 use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DriveItem {
+    pub name: String,
+
+    #[serde(flatten)]
+    pub extras: HashMap<String, Value>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct DriveItemList {
     #[serde(rename = "value")]
-    pub data: Vec<Value>,
+    pub data: Vec<DriveItem>,
     #[serde(rename = "@odata.nextLink")]
     pub next_url: Option<String>,
     #[serde(rename = "@odata.deltaLink")]
@@ -19,7 +27,7 @@ pub struct DriveItemList {
 }
 
 impl Iterator for DriveItemList {
-    type Item = Value;
+    type Item = DriveItem;
     fn next(&mut self) -> Option<Self::Item> {
         if self.cur_index == self.data.len() {
             return None;
