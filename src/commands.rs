@@ -152,7 +152,6 @@ pub fn upload_cmd(source_file: &PathBuf) -> MyResult<()> {
     Ok(())
 }
 
-use serde_json::Value;
 pub fn test_cmd() -> MyResult<()> {
     let mut config = Configuration::from_file(&config_file())?;
     // let temp = refresh_auth_data(&config.refresh_token)?;
@@ -161,10 +160,11 @@ pub fn test_cmd() -> MyResult<()> {
     // config.save(&config_file())?;
 
     let svc = OneDriveTwo::new(config.auth_token);
-    let res = executor::block_on(svc.list())?;
-    println!("Response: {:#?}", res);
-    let data = executor::block_on(res.text())?;
-    let v: Value = serde_json::from_str(&data)?;
-    println!("Body is: {:#?}", v);
+    let mut res = executor::block_on(svc.list())?;
+
+    for i in res {
+        println!("{:#?}", i["name"].as_str().expect("must be a string"));
+    }
+
     Ok(())
 }
