@@ -6,10 +6,8 @@ use crate::auth::{
 };
 use crate::configfile::Configuration;
 use futures::executor;
-use onedrive_api::{DriveLocation, ItemLocation, OneDrive};
 use std::error::Error;
-use std::fs::File;
-use std::io::{stdin, stdout, Read, Write};
+use std::io::{stdin, stdout, Write};
 use std::path::PathBuf;
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
@@ -79,9 +77,9 @@ pub fn init_cmd(browser: bool) -> MyResult<()> {
 pub fn ls_cmd() -> MyResult<()> {
     let mut config = Configuration::from_file(&config_file())?;
 
-    let service = OneDrive::new(config.auth_token, DriveLocation::me());
-    let src_item = ItemLocation::root();
-    let result = executor::block_on(service.list_children(src_item));
+    let svc = OneDriveTwo::new(config.auth_token);
+    let result = executor::block_on(svc.list());
+
     let children = match result {
         Ok(d) => d,
         Err(_) => {
@@ -92,16 +90,14 @@ pub fn ls_cmd() -> MyResult<()> {
             config.refresh_token = temp.refresh_token;
             config.save(&config_file())?;
 
-            let drive = OneDrive::new(config.auth_token, DriveLocation::me());
-            let item = ItemLocation::root();
-            let a = drive.list_children(item);
-            executor::block_on(a)?
+            let svc = OneDriveTwo::new(config.auth_token);
+            executor::block_on(svc.list())?
         }
     };
 
     // Iterate through children and show their names to the user
     for i in children {
-        println!("{}", i.name.unwrap());
+        println!("{}", i.name);
     }
     Ok(())
 }
@@ -114,57 +110,40 @@ pub fn ls_cmd() -> MyResult<()> {
 ///
 /// * `source_file` - path to the local file to upload
 pub fn upload_cmd(source_file: &PathBuf) -> MyResult<()> {
-    let mut config = Configuration::from_file(&config_file())?;
-    let client = reqwest::Client::new();
+    //let mut config = Configuration::from_file(&config_file())?;
+    // let client = reqwest::Client::new();
 
-    let service = OneDrive::new(config.auth_token, DriveLocation::me());
-    let src_item = ItemLocation::root();
-    let result = executor::block_on(service.new_upload_session(src_item));
-    let (session, _meta) = match result {
-        Ok((s, m)) => (s, m),
-        Err(_) => {
-            // If our first attempt to perform the operation fails, request a token
-            // refresh from OneDrive and try again
-            let temp = refresh_auth_data(&config.refresh_token)?;
-            config.auth_token = temp.access_token;
-            config.refresh_token = temp.refresh_token;
-            config.save(&config_file())?;
+    // let service = OneDrive::new(config.auth_token, DriveLocation::me());
+    // let src_item = ItemLocation::root();
+    // let result = executor::block_on(service.new_upload_session(src_item));
+    // let (session, _meta) = match result {
+    //     Ok((s, m)) => (s, m),
+    //     Err(_) => {
+    //         // If our first attempt to perform the operation fails, request a token
+    //         // refresh from OneDrive and try again
+    //         let temp = refresh_auth_data(&config.refresh_token)?;
+    //         config.auth_token = temp.access_token;
+    //         config.refresh_token = temp.refresh_token;
+    //         config.save(&config_file())?;
 
-            let service = OneDrive::new(config.auth_token, DriveLocation::me());
-            let src_item = ItemLocation::root();
-            executor::block_on(service.new_upload_session(src_item))?
-        }
-    };
-    let mut file = File::open(source_file)?;
-    let file_size = file.metadata()?.len();
-    let mut buffer = vec![0; file_size as usize];
-    file.read_exact(&mut buffer).expect("buffer overflow");
-    let dest_item =
-        executor::block_on(session.upload_part(buffer, 0..file_size, file_size, &client))?;
-    match dest_item {
-        Some(item) => {
-            println!("Successfully uploaded {}", item.name.unwrap());
-        }
-        None => {
-            println!("Failed to upload file");
-        }
-    };
-    Ok(())
-}
-
-pub fn test_cmd() -> MyResult<()> {
-    let mut config = Configuration::from_file(&config_file())?;
-    // let temp = refresh_auth_data(&config.refresh_token)?;
-    // config.auth_token = temp.access_token;
-    // config.refresh_token = temp.refresh_token;
-    // config.save(&config_file())?;
-
-    let svc = OneDriveTwo::new(config.auth_token);
-    let res = executor::block_on(svc.list())?;
-    println!("{:#?}", res);
-    for i in res {
-        println!("{:#?}", i.name);
-    }
-
+    //         let service = OneDrive::new(config.auth_token, DriveLocation::me());
+    //         let src_item = ItemLocation::root();
+    //         executor::block_on(service.new_upload_session(src_item))?
+    //     }
+    // };
+    // let mut file = File::open(source_file)?;
+    // let file_size = file.metadata()?.len();
+    // let mut buffer = vec![0; file_size as usize];
+    // file.read_exact(&mut buffer).expect("buffer overflow");
+    // let dest_item =
+    //     executor::block_on(session.upload_part(buffer, 0..file_size, file_size, &client))?;
+    // match dest_item {
+    //     Some(item) => {
+    //         println!("Successfully uploaded {}", item.name.unwrap());
+    //     }
+    //     None => {
+    //         println!("Failed to upload file");
+    //     }
+    // };
     Ok(())
 }

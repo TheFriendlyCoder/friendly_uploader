@@ -60,10 +60,13 @@ impl OneDriveTwo {
 
     pub async fn list(&self) -> MyResult<DriveItemList> {
         let url = "https://graph.microsoft.com/v1.0/me/drive/root/children";
-        let opt_resp = self.client.get(url).bearer_auth(&self.token).send().await?;
-
-        // TODO: detect non-success error codes and return here
-        println!("Status code is {:#?}", opt_resp.status());
+        let opt_resp = self
+            .client
+            .get(url)
+            .bearer_auth(&self.token)
+            .send()
+            .await?
+            .error_for_status()?;
 
         Ok(opt_resp.json().await?)
     }

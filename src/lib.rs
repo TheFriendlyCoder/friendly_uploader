@@ -34,7 +34,6 @@ enum SubCommand {
         /// Path to the file to upload
         sourcefile: PathBuf,
     },
-    Test,
 }
 
 /// Entrypoint function for our command line interface
@@ -49,9 +48,6 @@ pub fn run() -> MyResult<()> {
         }
         SubCommand::Upload { sourcefile } => {
             upload_cmd(&sourcefile)?;
-        }
-        SubCommand::Test => {
-            test_cmd()?;
         }
     }
     Ok(())
