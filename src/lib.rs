@@ -1,6 +1,6 @@
 //! Command line tool for managing objects stored in a OneDrive service
 use clap::{Parser, Subcommand};
-use commands::{init_cmd, ls_cmd, test_cmd, upload_cmd};
+use commands::{init_cmd, ls_cmd, upload_cmd};
 use std::{error::Error, fmt::Debug, path::PathBuf};
 
 mod api;

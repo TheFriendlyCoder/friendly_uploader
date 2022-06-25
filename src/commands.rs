@@ -1,5 +1,5 @@
 //! Entrypoint functions for all of our CLI commands
-use crate::api::onedrive::OneDriveTwo;
+use crate::api::onedrive::OneDrive;
 use crate::auth::{
     get_auth_data, get_auth_url, get_oauth_token_from_browser, parse_token, refresh_auth_data,
     REDIRECT_URI,
@@ -8,7 +8,7 @@ use crate::configfile::Configuration;
 use futures::executor;
 use std::error::Error;
 use std::io::{stdin, stdout, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
@@ -77,12 +77,13 @@ pub fn init_cmd(browser: bool) -> MyResult<()> {
 pub fn ls_cmd() -> MyResult<()> {
     let mut config = Configuration::from_file(&config_file())?;
 
-    let svc = OneDriveTwo::new(config.auth_token);
-    let result = executor::block_on(svc.list());
-
-    let children = match result {
+    let svc = OneDrive::new(config.auth_token);
+    let result = executor::block_on(svc.me());
+    let me = match result {
         Ok(d) => d,
         Err(_) => {
+            // TODO: convert this to a log message
+            println!("Attempting to reauthenticate...");
             // If our first attempt to perform the operation fails, request a token
             // refresh from OneDrive and try again
             let temp = refresh_auth_data(&config.refresh_token)?;
@@ -90,10 +91,29 @@ pub fn ls_cmd() -> MyResult<()> {
             config.refresh_token = temp.refresh_token;
             config.save(&config_file())?;
 
-            let svc = OneDriveTwo::new(config.auth_token);
-            executor::block_on(svc.list())?
+            let svc = OneDrive::new(config.auth_token);
+            executor::block_on(svc.me())?
         }
     };
+    let root = executor::block_on(me.root())?;
+    let children = executor::block_on(root.children())?;
+    //let result = executor::block_on(svc.list());
+    // let children = match result {
+    //     Ok(d) => d,
+    //     Err(_) => {
+    //         // TODO: convert this to a log message
+    //         println!("Attempting to reauthenticate...");
+    //         // If our first attempt to perform the operation fails, request a token
+    //         // refresh from OneDrive and try again
+    //         let temp = refresh_auth_data(&config.refresh_token)?;
+    //         config.auth_token = temp.access_token;
+    //         config.refresh_token = temp.refresh_token;
+    //         config.save(&config_file())?;
+
+    //         let svc = OneDrive::new(config.auth_token);
+    //         executor::block_on(svc.list())?
+    //     }
+    // };
 
     // Iterate through children and show their names to the user
     for i in children {
@@ -109,7 +129,7 @@ pub fn ls_cmd() -> MyResult<()> {
 /// # Arguments
 ///
 /// * `source_file` - path to the local file to upload
-pub fn upload_cmd(source_file: &PathBuf) -> MyResult<()> {
+pub fn upload_cmd(_source_file: &Path) -> MyResult<()> {
     //let mut config = Configuration::from_file(&config_file())?;
     // let client = reqwest::Client::new();
 
