@@ -3,7 +3,6 @@
 //! process using the "code flow" defined here:
 //!     https://docs.microsoft.com/en-us/onedrive/developer/rest-api/getting-started/msa-oauth?view=odsp-graph-online
 use futures::executor;
-use reqwest;
 use serde::Deserialize;
 use simple_error::SimpleError;
 use std::io::{BufRead, BufReader, Write};
@@ -23,7 +22,7 @@ const CLIENT_ID: &str = "454dddcf-522d-43b6-b078-b38657e8045a";
 /// Gets a formatted URL that can be pasted into a web browser to request access
 /// to the currently logged in OneDrive users profile for our app
 pub fn get_auth_url() -> String {
-    let scope = encode("files.readwrite.all onedrive.readwrite offline_access");
+    let scope = encode("files.readwrite.all onedrive.readwrite offline_access user.read");
     format!("https://login.live.com/oauth20_authorize.srf?client_id={}&scope={}&response_type=code&redirect_uri={}", CLIENT_ID, scope, REDIRECT_URI)
 }
 
