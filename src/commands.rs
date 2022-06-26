@@ -1,4 +1,5 @@
 //! Entrypoint functions for all of our CLI commands
+use crate::api::onedrive::OneDrive as odapi;
 use crate::auth::{
     get_auth_data, get_auth_url, get_oauth_token_from_browser, parse_token, refresh_auth_data,
     REDIRECT_URI,
@@ -69,6 +70,26 @@ pub fn init_cmd(browser: bool) -> MyResult<()> {
     };
 
     config.save(&config_file())?;
+
+    Ok(())
+}
+
+/// Command handler for the "Me" subcommand of our app
+/// Displays profile information for the currently logged in user
+pub fn me_cmd() -> MyResult<()> {
+    let mut config = Configuration::from_file(&config_file())?;
+
+    let service = odapi::new(&config.auth_token);
+    let me = executor::block_on(service.me()).or_else(|_| {
+        let temp = refresh_auth_data(&config.refresh_token)?;
+        config.auth_token = temp.access_token;
+        config.refresh_token = temp.refresh_token;
+        config.save(&config_file())?;
+
+        let service = odapi::new(&config.auth_token);
+        executor::block_on(service.me())
+    })?;
+    println!("{:#?}", me);
 
     Ok(())
 }
