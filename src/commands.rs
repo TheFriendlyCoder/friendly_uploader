@@ -5,7 +5,6 @@ use crate::auth::{
     REDIRECT_URI,
 };
 use crate::configfile::Configuration;
-use futures::executor;
 use onedrive_api::{DriveLocation, ItemLocation, OneDrive};
 use std::error::Error;
 use std::fs::File;
@@ -76,19 +75,23 @@ pub fn init_cmd(browser: bool) -> MyResult<()> {
 
 /// Command handler for the "Me" subcommand of our app
 /// Displays profile information for the currently logged in user
-pub fn me_cmd() -> MyResult<()> {
+pub async fn me_cmd() -> MyResult<()> {
     let mut config = Configuration::from_file(&config_file())?;
 
     let service = odapi::new(&config.auth_token);
-    let me = executor::block_on(service.me()).or_else(|_| {
-        let temp = refresh_auth_data(&config.refresh_token)?;
-        config.auth_token = temp.access_token;
-        config.refresh_token = temp.refresh_token;
-        config.save(&config_file())?;
+    let result = service.me().await;
+    let me = match result {
+        Ok(d) => d,
+        Err(_) => {
+            let temp = refresh_auth_data(&config.refresh_token)?;
+            config.auth_token = temp.access_token;
+            config.refresh_token = temp.refresh_token;
+            config.save(&config_file())?;
 
-        let service = odapi::new(&config.auth_token);
-        executor::block_on(service.me())
-    })?;
+            let service = odapi::new(&config.auth_token);
+            service.me().await?
+        }
+    };
     println!("{:#?}", me);
 
     Ok(())
@@ -96,32 +99,29 @@ pub fn me_cmd() -> MyResult<()> {
 
 /// Entrypoint method for the 'ls' subcommand
 /// Shows a directory listing of the root OneDrive folder
-pub fn ls_cmd() -> MyResult<()> {
+pub async fn ls_cmd() -> MyResult<()> {
     let mut config = Configuration::from_file(&config_file())?;
 
-    let service = OneDrive::new(config.auth_token, DriveLocation::me());
-    let src_item = ItemLocation::root();
-    let result = executor::block_on(service.list_children(src_item));
-    let children = match result {
+    let service = odapi::new(&config.auth_token);
+    let result = service.me().await;
+    let me = match result {
         Ok(d) => d,
         Err(_) => {
-            // If our first attempt to perform the operation fails, request a token
-            // refresh from OneDrive and try again
             let temp = refresh_auth_data(&config.refresh_token)?;
             config.auth_token = temp.access_token;
             config.refresh_token = temp.refresh_token;
             config.save(&config_file())?;
 
-            let drive = OneDrive::new(config.auth_token, DriveLocation::me());
-            let item = ItemLocation::root();
-            let a = drive.list_children(item);
-            executor::block_on(a)?
+            let service = odapi::new(&config.auth_token);
+            service.me().await?
         }
     };
+    let root = me.root().await?;
+    let children = root.children().await?;
 
     // Iterate through children and show their names to the user
     for i in children {
-        println!("{}", i.name.unwrap());
+        println!("{}", i.name);
     }
     Ok(())
 }
@@ -133,13 +133,13 @@ pub fn ls_cmd() -> MyResult<()> {
 /// # Arguments
 ///
 /// * `source_file` - path to the local file to upload
-pub fn upload_cmd(source_file: &PathBuf) -> MyResult<()> {
+pub async fn upload_cmd(source_file: &PathBuf) -> MyResult<()> {
     let mut config = Configuration::from_file(&config_file())?;
     let client = reqwest::Client::new();
 
     let service = OneDrive::new(config.auth_token, DriveLocation::me());
     let src_item = ItemLocation::root();
-    let result = executor::block_on(service.new_upload_session(src_item));
+    let result = service.new_upload_session(src_item).await;
     let (session, _meta) = match result {
         Ok((s, m)) => (s, m),
         Err(_) => {
@@ -152,15 +152,16 @@ pub fn upload_cmd(source_file: &PathBuf) -> MyResult<()> {
 
             let service = OneDrive::new(config.auth_token, DriveLocation::me());
             let src_item = ItemLocation::root();
-            executor::block_on(service.new_upload_session(src_item))?
+            service.new_upload_session(src_item).await?
         }
     };
     let mut file = File::open(source_file)?;
     let file_size = file.metadata()?.len();
     let mut buffer = vec![0; file_size as usize];
     file.read_exact(&mut buffer).expect("buffer overflow");
-    let dest_item =
-        executor::block_on(session.upload_part(buffer, 0..file_size, file_size, &client))?;
+    let dest_item = session
+        .upload_part(buffer, 0..file_size, file_size, &client)
+        .await?;
     match dest_item {
         Some(item) => {
             println!("Successfully uploaded {}", item.name.unwrap());
