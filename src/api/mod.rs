@@ -2,4 +2,5 @@
 pub(crate) mod drive;
 pub(crate) mod driveitem;
 pub(crate) mod onedrive;
+pub(crate) mod onedriveapi;
 pub(crate) mod user;

@@ -2,7 +2,7 @@
 use crate::api::onedrive::OneDrive as odapi;
 use crate::auth::{
     get_auth_data, get_auth_url, get_oauth_token_from_browser, parse_token, refresh_auth_data,
-    REDIRECT_URI,
+    CLIENT_ID, REDIRECT_URI,
 };
 use crate::configfile::Configuration;
 use onedrive_api::{DriveLocation, ItemLocation, OneDrive};
@@ -78,17 +78,27 @@ pub fn init_cmd(browser: bool) -> MyResult<()> {
 pub async fn me_cmd() -> MyResult<()> {
     let mut config = Configuration::from_file(&config_file())?;
 
-    let service = odapi::new(&config.auth_token);
+    let service = odapi::new(
+        CLIENT_ID,
+        REDIRECT_URI,
+        &config.auth_token,
+        &config.refresh_token,
+    );
     let result = service.me().await;
     let me = match result {
         Ok(d) => d,
         Err(_) => {
-            let temp = refresh_auth_data(&config.refresh_token)?;
-            config.auth_token = temp.access_token;
-            config.refresh_token = temp.refresh_token;
-            config.save(&config_file())?;
+            // let temp = refresh_auth_data(&config.refresh_token)?;
+            // config.auth_token = temp.access_token;
+            // config.refresh_token = temp.refresh_token;
+            // config.save(&config_file())?;
 
-            let service = odapi::new(&config.auth_token);
+            let service = odapi::new(
+                CLIENT_ID,
+                REDIRECT_URI,
+                &config.auth_token,
+                &config.refresh_token,
+            );
             service.me().await?
         }
     };
@@ -102,7 +112,12 @@ pub async fn me_cmd() -> MyResult<()> {
 pub async fn ls_cmd() -> MyResult<()> {
     let mut config = Configuration::from_file(&config_file())?;
 
-    let service = odapi::new(&config.auth_token);
+    let service = odapi::new(
+        CLIENT_ID,
+        REDIRECT_URI,
+        &config.auth_token,
+        &config.refresh_token,
+    );
     let result = service.me().await;
     let me = match result {
         Ok(d) => d,
@@ -112,7 +127,12 @@ pub async fn ls_cmd() -> MyResult<()> {
             config.refresh_token = temp.refresh_token;
             config.save(&config_file())?;
 
-            let service = odapi::new(&config.auth_token);
+            let service = odapi::new(
+                CLIENT_ID,
+                REDIRECT_URI,
+                &config.auth_token,
+                &config.refresh_token,
+            );
             service.me().await?
         }
     };

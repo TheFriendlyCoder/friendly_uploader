@@ -17,7 +17,7 @@ pub const REDIRECT_URI: &str = "http://127.0.0.1:8080/";
 /// GUID that uniquely identifies our application to OneDrive
 /// Managed through the Azue app port here:
 ///     https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade
-const CLIENT_ID: &str = "454dddcf-522d-43b6-b078-b38657e8045a";
+pub const CLIENT_ID: &str = "454dddcf-522d-43b6-b078-b38657e8045a";
 
 /// Gets a formatted URL that can be pasted into a web browser to request access
 /// to the currently logged in OneDrive users profile for our app

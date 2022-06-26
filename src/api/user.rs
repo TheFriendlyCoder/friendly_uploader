@@ -1,4 +1,5 @@
 //! Primitives for manipulating OneDrive user entities
+use std::cell::RefCell;
 use std::error::Error;
 use std::rc::Rc;
 
@@ -6,7 +7,7 @@ use reqwest::Response;
 use serde::Deserialize;
 
 use super::drive::Drive;
-use super::onedrive::OneDriveApi;
+use super::onedriveapi::OneDriveApi;
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
 #[derive(Debug, Deserialize)]
@@ -31,7 +32,7 @@ pub struct User {
     #[serde(skip)]
     url: String,
     #[serde(skip)]
-    api: Option<Rc<OneDriveApi>>,
+    api: Option<Rc<RefCell<OneDriveApi>>>,
 }
 
 impl User {
@@ -43,7 +44,7 @@ impl User {
     /// * `url` - Full URL to the REST API endpoint managed by this entity
     /// * `api` - Shared reference to the interface used to communicate with
     ///           the OneDrive REST API
-    pub async fn new(resp: Response, url: &str, api: Rc<OneDriveApi>) -> User {
+    pub async fn new(resp: Response, url: &str, api: Rc<RefCell<OneDriveApi>>) -> User {
         let mut retval: User = resp.json().await.unwrap();
         retval.url = url.to_string();
         retval.api = Some(api);
@@ -52,7 +53,7 @@ impl User {
 
     /// Helper method that unwraps a reference to the REST API interface used
     /// by the impl for making dynamic API calls
-    fn api(&self) -> &Rc<OneDriveApi> {
+    fn api(&self) -> &Rc<RefCell<OneDriveApi>> {
         self.api.as_ref().unwrap()
     }
 
@@ -64,12 +65,13 @@ impl User {
         let url = format!("{}{}", self.url, "/drive/root");
         let opt_resp = self
             .api()
+            .borrow()
             .client
             .get(&url)
-            .bearer_auth(&self.api().access_token)
+            .bearer_auth(&self.api().borrow().access_token)
             .send()
             .await?
             .error_for_status()?;
-        Ok(Drive::new(opt_resp, &url, Rc::clone(self.api())).await)
+        Ok(Drive::new(opt_resp, &url, Rc::clone(&self.api())).await)
     }
 }
