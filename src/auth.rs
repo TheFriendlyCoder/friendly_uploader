@@ -2,7 +2,7 @@
 //! Used primarily to orchestrate the OAuth authentication
 //! process using the "code flow" defined here:
 //!     https://docs.microsoft.com/en-us/onedrive/developer/rest-api/getting-started/msa-oauth?view=odsp-graph-online
-use futures::executor;
+use futures::executor::block_on;
 use serde::Deserialize;
 use simple_error::SimpleError;
 use std::io::{BufRead, BufReader, Write};
@@ -110,8 +110,8 @@ pub fn get_auth_data(client_code: &str) -> Result<Authdata, Box<dyn Error>> {
     params.insert("code", client_code);
     params.insert("grant_type", "authorization_code");
 
-    let response = executor::block_on(client.post(url).form(&params).send())?;
-    let data: Authdata = executor::block_on(response.json::<Authdata>())?;
+    let response = block_on(client.post(url).form(&params).send())?;
+    let data: Authdata = block_on(response.json::<Authdata>())?;
     Ok(data)
 }
 
@@ -134,7 +134,7 @@ pub fn refresh_auth_data(refresh_token: &str) -> Result<Authdata, Box<dyn Error>
     params.insert("redirect_uri", REDIRECT_URI);
     params.insert("refresh_token", refresh_token);
     params.insert("grant_type", "refresh_token");
-    let response = executor::block_on(client.post(url).form(&params).send())?;
-    let data: Authdata = executor::block_on(response.json::<Authdata>())?;
+    let response = block_on(client.post(url).form(&params).send())?;
+    let data: Authdata = block_on(response.json::<Authdata>())?;
     Ok(data)
 }
